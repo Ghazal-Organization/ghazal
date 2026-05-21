@@ -1,0 +1,1301 @@
+openapi: 3.1.0
+info:
+  title: Ghazal Online Ordering API
+  version: 1.0.0
+  description: |
+    Cloud API for the Ghazal online ordering platform. See `docs/api/README.md`
+    for conventions (auth, errors, pagination, idempotency).
+  contact:
+    name: Ghazal Dev
+servers:
+  - url: https://api.ghazal.example
+    description: Production
+  - url: https://staging-api.ghazal.example
+    description: Staging
+
+tags:
+  - name: Auth
+  - name: Me
+  - name: Branches
+  - name: Menu
+  - name: Orders
+  - name: Payments
+  - name: Webhooks
+  - name: Admin Auth
+  - name: Admin Orders
+  - name: Admin Menu
+  - name: Admin Branch
+  - name: Sync
+  - name: Health
+
+# -----------------------------------------------------------------------------
+# Security
+# -----------------------------------------------------------------------------
+components:
+  securitySchemes:
+    customerJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Customer JWT issued by /v1/auth/otp/verify
+    staffJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Staff JWT issued by /v1/admin/auth/login
+    agentJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Sync Agent JWT issued at install time, per branch
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AcceptLanguage:
+      name: Accept-Language
+      in: header
+      required: false
+      schema:
+        type: string
+        enum: [ar, en]
+        default: ar
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+    BranchId:
+      name: branchId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    OrderId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ItemId:
+      name: itemId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid token
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: Authenticated but not allowed
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: Not found
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Conflict:
+      description: Conflict (state machine, duplicate, etc.)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Validation:
+      description: Validation failed
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    RateLimited:
+      description: Too many requests
+      headers:
+        Retry-After:
+          schema: { type: integer }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  schemas:
+
+    # -------- common --------
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:     { type: string, format: uri }
+        title:    { type: string }
+        status:   { type: integer }
+        detail:   { type: string }
+        instance: { type: string }
+        traceId:  { type: string }
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
+
+    Money:
+      type: number
+      format: decimal
+      minimum: 0
+      description: EGP, two decimals
+
+    Cursored:
+      type: object
+      properties:
+        nextCursor: { type: string, nullable: true }
+        items:      { type: array, items: { type: object } }
+
+    # -------- auth --------
+    OtpRequest:
+      type: object
+      required: [phone]
+      properties:
+        phone: { type: string, example: "+201001234567" }
+        purpose: { type: string, enum: [login, verify_phone], default: login }
+    OtpVerify:
+      type: object
+      required: [phone, code]
+      properties:
+        phone: { type: string }
+        code:  { type: string, minLength: 4, maxLength: 8 }
+    TokenPair:
+      type: object
+      required: [accessToken, refreshToken]
+      properties:
+        accessToken:     { type: string }
+        refreshToken:    { type: string }
+        accessExpiresAt: { type: string, format: date-time }
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken: { type: string }
+    StaffLogin:
+      type: object
+      required: [email, password]
+      properties:
+        email:    { type: string, format: email }
+        password: { type: string, format: password }
+    StaffLoginResponse:
+      allOf:
+        - $ref: '#/components/schemas/TokenPair'
+        - type: object
+          properties:
+            user:
+              type: object
+              properties:
+                id: { type: string, format: uuid }
+                fullName: { type: string }
+                email: { type: string }
+            branches:
+              type: array
+              items:
+                type: object
+                properties:
+                  branchId: { type: string, format: uuid }
+                  role: { type: string, enum: [owner, manager, cashier, kitchen] }
+
+    # -------- customer --------
+    Customer:
+      type: object
+      properties:
+        id:            { type: string, format: uuid }
+        phone:         { type: string }
+        name:          { type: string, nullable: true }
+        preferredLang: { type: string, enum: [ar, en] }
+    Address:
+      type: object
+      required: [line1, city]
+      properties:
+        id:        { type: string, format: uuid, readOnly: true }
+        label:     { type: string, example: "Home" }
+        line1:     { type: string }
+        line2:     { type: string }
+        city:      { type: string }
+        governorate: { type: string }
+        landmark:  { type: string }
+        lat:       { type: number, format: double }
+        lng:       { type: number, format: double }
+        isDefault: { type: boolean }
+        notes:     { type: string }
+
+    # -------- menu --------
+    Branch:
+      type: object
+      properties:
+        id:           { type: string, format: uuid }
+        code:         { type: string }
+        nameAr:       { type: string }
+        nameEn:       { type: string }
+        addressLine:  { type: string }
+        city:         { type: string }
+        phone:        { type: string }
+        timezone:     { type: string, example: "Africa/Cairo" }
+        opensAt:      { type: string, example: "10:00" }
+        closesAt:     { type: string, example: "02:00" }
+        onlineOrderingEnabled: { type: boolean }
+        currentlyOpen:        { type: boolean }
+    Category:
+      type: object
+      properties:
+        id:        { type: string, format: uuid }
+        nameAr:    { type: string }
+        nameEn:    { type: string }
+        sortOrder: { type: integer }
+    Modifier:
+      type: object
+      properties:
+        id:         { type: string, format: uuid }
+        nameAr:     { type: string }
+        nameEn:     { type: string }
+        priceDelta: { $ref: '#/components/schemas/Money' }
+        isAvailable: { type: boolean }
+    ModifierGroup:
+      type: object
+      properties:
+        id:        { type: string, format: uuid }
+        nameAr:    { type: string }
+        nameEn:    { type: string }
+        minSelect: { type: integer }
+        maxSelect: { type: integer }
+        modifiers: { type: array, items: { $ref: '#/components/schemas/Modifier' } }
+    MenuItemMedia:
+      type: object
+      properties:
+        id:        { type: string, format: uuid }
+        url:       { type: string, format: uri }
+        altAr:     { type: string }
+        altEn:     { type: string }
+        width:     { type: integer }
+        height:    { type: integer }
+        blurhash:  { type: string }
+        isPrimary: { type: boolean }
+    MenuItem:
+      type: object
+      properties:
+        id:            { type: string, format: uuid }
+        categoryId:    { type: string, format: uuid }
+        nameAr:        { type: string }
+        nameEn:        { type: string }
+        descriptionAr: { type: string }
+        descriptionEn: { type: string }
+        basePrice:     { $ref: '#/components/schemas/Money' }
+        taxPercent:    { type: number }
+        isAvailable:   { type: boolean }
+        isFeatured:    { type: boolean }
+        tags:          { type: array, items: { type: string } }
+        allergens:     { type: array, items: { type: string } }
+        prepMinutes:   { type: integer, nullable: true }
+        minPerOrder:   { type: integer, nullable: true }
+        maxPerOrder:   { type: integer, nullable: true }
+        modifierGroups: { type: array, items: { $ref: '#/components/schemas/ModifierGroup' } }
+        media:         { type: array, items: { $ref: '#/components/schemas/MenuItemMedia' } }
+    Menu:
+      type: object
+      properties:
+        branchId:   { type: string, format: uuid }
+        categories: { type: array, items: { $ref: '#/components/schemas/Category' } }
+        items:      { type: array, items: { $ref: '#/components/schemas/MenuItem' } }
+
+    # -------- orders --------
+    OrderChannel:
+      type: string
+      enum: [takeaway, delivery]
+    PaymentMethod:
+      type: string
+      enum: [card, wallet, cod]
+    OrderStatus:
+      type: string
+      enum:
+        - draft
+        - pending
+        - placed
+        - accepted
+        - rejected
+        - preparing
+        - ready
+        - out_for_delivery
+        - completed
+        - cancelled_by_customer
+        - cancelled_by_branch
+        - expired
+        - failed
+    OrderLineInput:
+      type: object
+      required: [menuItemId, quantity]
+      properties:
+        menuItemId: { type: string, format: uuid }
+        quantity:   { type: integer, minimum: 1 }
+        notes:      { type: string }
+        modifiers:
+          type: array
+          items:
+            type: object
+            required: [modifierId, quantity]
+            properties:
+              modifierId: { type: string, format: uuid }
+              quantity:   { type: integer, minimum: 1, default: 1 }
+    OrderCreate:
+      type: object
+      required: [branchId, channel, paymentMethod, items]
+      properties:
+        branchId:      { type: string, format: uuid }
+        channel:       { $ref: '#/components/schemas/OrderChannel' }
+        addressId:     { type: string, format: uuid, nullable: true, description: "Required for delivery" }
+        paymentMethod: { $ref: '#/components/schemas/PaymentMethod' }
+        items:         { type: array, items: { $ref: '#/components/schemas/OrderLineInput' }, minItems: 1 }
+        notes:         { type: string }
+        requestedFor:  { type: string, format: date-time, nullable: true }
+    OrderLine:
+      type: object
+      properties:
+        id:           { type: string, format: uuid }
+        menuItemId:   { type: string, format: uuid }
+        nameAr:       { type: string }
+        nameEn:       { type: string }
+        unitPrice:    { $ref: '#/components/schemas/Money' }
+        quantity:     { type: integer }
+        lineSubtotal: { $ref: '#/components/schemas/Money' }
+        modifiers:
+          type: array
+          items:
+            type: object
+            properties:
+              modifierId: { type: string, format: uuid }
+              nameAr:     { type: string }
+              nameEn:     { type: string }
+              priceDelta: { $ref: '#/components/schemas/Money' }
+              quantity:   { type: integer }
+        notes: { type: string }
+    Order:
+      type: object
+      properties:
+        id:                { type: string, format: uuid }
+        branchId:          { type: string, format: uuid }
+        shortCode:         { type: string, example: "BR01-1234" }
+        channel:           { $ref: '#/components/schemas/OrderChannel' }
+        status:            { $ref: '#/components/schemas/OrderStatus' }
+        subtotal:          { $ref: '#/components/schemas/Money' }
+        discountAmount:    { $ref: '#/components/schemas/Money' }
+        deliveryFee:       { $ref: '#/components/schemas/Money' }
+        serviceCharge:     { $ref: '#/components/schemas/Money' }
+        taxAmount:         { $ref: '#/components/schemas/Money' }
+        totalAmount:       { $ref: '#/components/schemas/Money' }
+        requestedFor:      { type: string, format: date-time, nullable: true }
+        estimatedReadyAt:  { type: string, format: date-time, nullable: true }
+        placedAt:          { type: string, format: date-time, nullable: true }
+        completedAt:       { type: string, format: date-time, nullable: true }
+        items:             { type: array, items: { $ref: '#/components/schemas/OrderLine' } }
+        addressId:         { type: string, format: uuid, nullable: true }
+        notes:             { type: string }
+    OrderCreateResponse:
+      allOf:
+        - $ref: '#/components/schemas/Order'
+        - type: object
+          properties:
+            payment:
+              type: object
+              nullable: true
+              properties:
+                paymentId:        { type: string, format: uuid }
+                method:           { $ref: '#/components/schemas/PaymentMethod' }
+                hostedPaymentUrl: { type: string, format: uri, nullable: true }
+                expiresAt:        { type: string, format: date-time, nullable: true }
+    OrderEvent:
+      type: object
+      properties:
+        id:         { type: string, format: uuid }
+        fromStatus: { $ref: '#/components/schemas/OrderStatus' }
+        toStatus:   { $ref: '#/components/schemas/OrderStatus' }
+        actorType:  { type: string, enum: [customer, staff, system, agent, gateway] }
+        reason:     { type: string, nullable: true }
+        occurredAt: { type: string, format: date-time }
+    OrderDetailed:
+      allOf:
+        - $ref: '#/components/schemas/Order'
+        - type: object
+          properties:
+            events: { type: array, items: { $ref: '#/components/schemas/OrderEvent' } }
+
+    # -------- payments --------
+    PaymentStatus:
+      type: string
+      enum:
+        - none
+        - authorizing
+        - authorized
+        - captured
+        - failed
+        - refund_pending
+        - partially_refunded
+        - refunded
+        - cod_pending
+        - cod_collected
+        - cod_failed
+    PaymentStatusResponse:
+      type: object
+      properties:
+        paymentId: { type: string, format: uuid }
+        status:    { $ref: '#/components/schemas/PaymentStatus' }
+        method:    { $ref: '#/components/schemas/PaymentMethod' }
+        amount:    { $ref: '#/components/schemas/Money' }
+        currency:  { type: string, example: EGP }
+        capturedAt: { type: string, format: date-time, nullable: true }
+        failureMessage: { type: string, nullable: true }
+    RefundRequest:
+      type: object
+      required: [amount, reason]
+      properties:
+        amount: { $ref: '#/components/schemas/Money' }
+        reason: { type: string }
+
+    # -------- delivery quote --------
+    DeliveryQuoteRequest:
+      type: object
+      required: [lat, lng]
+      properties:
+        lat: { type: number, format: double }
+        lng: { type: number, format: double }
+        addressId: { type: string, format: uuid, nullable: true }
+    DeliveryQuoteResponse:
+      type: object
+      properties:
+        zoneId:       { type: string, format: uuid }
+        zoneName:     { type: string }
+        baseFee:      { $ref: '#/components/schemas/Money' }
+        minOrderTotal: { $ref: '#/components/schemas/Money' }
+
+    # -------- sync --------
+    SyncHeartbeat:
+      type: object
+      required: [agentVersion]
+      properties:
+        agentVersion: { type: string }
+        posDbPath:    { type: string }
+        metrics:      { type: object, additionalProperties: true }
+    SyncOutboxEvent:
+      type: object
+      properties:
+        id:            { type: string, format: uuid }
+        aggregateType: { type: string, example: order }
+        aggregateId:   { type: string, format: uuid }
+        eventType:     { type: string, example: order.created }
+        payload:       { type: object }
+        createdAt:     { type: string, format: date-time }
+    SyncInboxEvent:
+      type: object
+      required: [eventType, payload]
+      properties:
+        eventType: { type: string, example: pos.status_changed }
+        payload:   { type: object }
+        occurredAt: { type: string, format: date-time }
+
+# -----------------------------------------------------------------------------
+# Paths
+# -----------------------------------------------------------------------------
+paths:
+
+  /healthz:
+    get:
+      tags: [Health]
+      summary: Liveness
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { status: { type: string, example: ok } }
+
+  # ----- Auth -----
+  /v1/auth/otp/request:
+    post:
+      tags: [Auth]
+      summary: Send OTP SMS to a phone number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OtpRequest' }
+      responses:
+        '202': { description: Accepted }
+        '422': { $ref: '#/components/responses/Validation' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /v1/auth/otp/verify:
+    post:
+      tags: [Auth]
+      summary: Verify OTP and issue tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OtpVerify' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/TokenPair'
+                  - type: object
+                    properties:
+                      customer: { $ref: '#/components/schemas/Customer' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Validation' }
+
+  /v1/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Rotate refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenPair' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Revoke current refresh token
+      security: [{ customerJwt: [] }]
+      responses:
+        '204': { description: No Content }
+
+  /v1/admin/auth/login:
+    post:
+      tags: [Admin Auth]
+      summary: Staff login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StaffLogin' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StaffLoginResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/admin/auth/refresh:
+    post:
+      tags: [Admin Auth]
+      summary: Staff refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenPair' }
+
+  # ----- Customer profile -----
+  /v1/me:
+    get:
+      tags: [Me]
+      summary: Current customer profile
+      security: [{ customerJwt: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Customer' }
+    patch:
+      tags: [Me]
+      summary: Update name / language
+      security: [{ customerJwt: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                preferredLang: { type: string, enum: [ar, en] }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Customer' }
+
+  /v1/me/addresses:
+    get:
+      tags: [Me]
+      summary: List addresses
+      security: [{ customerJwt: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Address' }
+    post:
+      tags: [Me]
+      summary: Create address
+      security: [{ customerJwt: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Address' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Address' }
+
+  /v1/me/addresses/{id}:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    patch:
+      tags: [Me]
+      summary: Update address
+      security: [{ customerJwt: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Address' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Address' }
+    delete:
+      tags: [Me]
+      summary: Soft-delete address
+      security: [{ customerJwt: [] }]
+      responses:
+        '204': { description: No Content }
+
+  /v1/me/orders:
+    get:
+      tags: [Me]
+      summary: Customer order history
+      security: [{ customerJwt: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Cursored'
+                  - type: object
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/Order' }
+
+  # ----- Public menu -----
+  /v1/branches:
+    get:
+      tags: [Branches]
+      summary: Active branches
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Branch' }
+
+  /v1/branches/{branchId}:
+    parameters: [{ $ref: '#/components/parameters/BranchId' }]
+    get:
+      tags: [Branches]
+      summary: Branch details
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Branch' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/branches/{branchId}/menu:
+    parameters: [{ $ref: '#/components/parameters/BranchId' }]
+    get:
+      tags: [Menu]
+      summary: Full menu for a branch
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Menu' }
+
+  /v1/branches/{branchId}/menu/items/{itemId}:
+    parameters:
+      - $ref: '#/components/parameters/BranchId'
+      - $ref: '#/components/parameters/ItemId'
+    get:
+      tags: [Menu]
+      summary: Single item
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MenuItem' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/branches/{branchId}/delivery-quote:
+    parameters: [{ $ref: '#/components/parameters/BranchId' }]
+    post:
+      tags: [Branches]
+      summary: Validate address and return delivery fee
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeliveryQuoteRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeliveryQuoteResponse' }
+        '422':
+          description: Out of delivery area
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  # ----- Orders & payments -----
+  /v1/orders:
+    post:
+      tags: [Orders]
+      summary: Create order (re-prices server-side from current POS snapshot)
+      security: [{ customerJwt: [] }]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrderCreate' }
+      responses:
+        '201':
+          description: Created. If non-COD, body includes a hostedPaymentUrl.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderCreateResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Validation' }
+
+  /v1/orders/{id}:
+    parameters: [{ $ref: '#/components/parameters/OrderId' }]
+    get:
+      tags: [Orders]
+      summary: Get order (customer can see only their own)
+      security: [{ customerJwt: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderDetailed' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/orders/{id}/cancel:
+    parameters: [{ $ref: '#/components/parameters/OrderId' }]
+    post:
+      tags: [Orders]
+      summary: Customer-initiated cancel (only before ACCEPTED)
+      security: [{ customerJwt: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /v1/orders/{id}/payment:
+    parameters: [{ $ref: '#/components/parameters/OrderId' }]
+    post:
+      tags: [Payments]
+      summary: Initiate or re-initiate a payment session for an order
+      security: [{ customerJwt: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  paymentId:        { type: string, format: uuid }
+                  hostedPaymentUrl: { type: string, format: uri }
+                  expiresAt:        { type: string, format: date-time }
+
+  /v1/orders/{id}/payment/status:
+    parameters: [{ $ref: '#/components/parameters/OrderId' }]
+    get:
+      tags: [Payments]
+      summary: Poll payment status (webhook is source of truth)
+      security: [{ customerJwt: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentStatusResponse' }
+
+  # ----- Webhooks -----
+  /v1/webhooks/kashier:
+    post:
+      tags: [Webhooks]
+      summary: Kashier payment webhook (HMAC signed; replay-safe)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200': { description: OK }
+        '401':
+          description: Bad signature
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /v1/webhooks/sms:
+    post:
+      tags: [Webhooks]
+      summary: SMS provider delivery receipt (optional)
+      responses:
+        '200': { description: OK }
+
+  # ----- Admin -----
+  /v1/admin/branches/{branchId}/orders:
+    parameters: [{ $ref: '#/components/parameters/BranchId' }]
+    get:
+      tags: [Admin Orders]
+      summary: Live orders board
+      security: [{ staffJwt: [] }]
+      parameters:
+        - name: status
+          in: query
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { $ref: '#/components/schemas/OrderStatus' }
+        - name: channel
+          in: query
+          schema: { $ref: '#/components/schemas/OrderChannel' }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Cursored'
+                  - type: object
+                    properties:
+                      items: { type: array, items: { $ref: '#/components/schemas/Order' } }
+
+  /v1/admin/orders/{id}:
+    parameters: [{ $ref: '#/components/parameters/OrderId' }]
+    get:
+      tags: [Admin Orders]
+      summary: Order detail with events
+      security: [{ staffJwt: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderDetailed' }
+
+  /v1/admin/orders/{id}/accept:
+    parameters: [{ $ref: '#/components/parameters/OrderId' }]
+    post:
+      tags: [Admin Orders]
+      summary: PLACED → ACCEPTED
+      security: [{ staffJwt: [] }]
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /v1/admin/orders/{id}/reject:
+    parameters: [{ $ref: '#/components/parameters/OrderId' }]
+    post:
+      tags: [Admin Orders]
+      summary: PLACED → REJECTED (+ auto refund)
+      security: [{ staffJwt: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: { reason: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } }
+
+  /v1/admin/orders/{id}/start-preparing:
+    parameters: [{ $ref: '#/components/parameters/OrderId' }]
+    post:
+      tags: [Admin Orders]
+      summary: ACCEPTED → PREPARING
+      security: [{ staffJwt: [] }]
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } }
+
+  /v1/admin/orders/{id}/mark-ready:
+    parameters: [{ $ref: '#/components/parameters/OrderId' }]
+    post:
+      tags: [Admin Orders]
+      summary: PREPARING → READY
+      security: [{ staffJwt: [] }]
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } }
+
+  /v1/admin/orders/{id}/mark-out-for-delivery:
+    parameters: [{ $ref: '#/components/parameters/OrderId' }]
+    post:
+      tags: [Admin Orders]
+      summary: READY → OUT_FOR_DELIVERY (delivery only)
+      security: [{ staffJwt: [] }]
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } }
+
+  /v1/admin/orders/{id}/mark-completed:
+    parameters: [{ $ref: '#/components/parameters/OrderId' }]
+    post:
+      tags: [Admin Orders]
+      summary: READY|OUT_FOR_DELIVERY → COMPLETED
+      security: [{ staffJwt: [] }]
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } }
+
+  /v1/admin/orders/{id}/cancel:
+    parameters: [{ $ref: '#/components/parameters/OrderId' }]
+    post:
+      tags: [Admin Orders]
+      summary: Branch-initiated cancel
+      security: [{ staffJwt: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties: { reason: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } }
+
+  /v1/admin/orders/{id}/refund:
+    parameters: [{ $ref: '#/components/parameters/OrderId' }]
+    post:
+      tags: [Admin Orders]
+      summary: Issue refund (full or partial)
+      security: [{ staffJwt: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefundRequest' }
+      responses:
+        '202':
+          description: Refund requested; final status arrives via webhook
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  refundId: { type: string, format: uuid }
+                  status:   { type: string, enum: [pending] }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /v1/admin/branches/{branchId}/menu/items:
+    parameters: [{ $ref: '#/components/parameters/BranchId' }]
+    get:
+      tags: [Admin Menu]
+      summary: Items with admin metadata (online attributes, hidden flag)
+      security: [{ staffJwt: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/MenuItem' } }
+
+  /v1/admin/menu/items/{id}/online-attributes:
+    parameters: [{ $ref: '#/components/parameters/OrderId' }]
+    patch:
+      tags: [Admin Menu]
+      summary: Update cloud-only attributes (description, tags, visibility, prep time)
+      security: [{ staffJwt: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                descriptionAr:    { type: string }
+                descriptionEn:    { type: string }
+                tags:             { type: array, items: { type: string } }
+                allergens:        { type: array, items: { type: string } }
+                isOnlineVisible:  { type: boolean }
+                isFeatured:       { type: boolean }
+                onlinePrepMinutes: { type: integer }
+                minPerOrder:      { type: integer }
+                maxPerOrder:      { type: integer }
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/MenuItem' } } }
+
+  /v1/admin/menu/items/{id}/media:
+    parameters: [{ $ref: '#/components/parameters/OrderId' }]
+    post:
+      tags: [Admin Menu]
+      summary: Upload menu image (server resizes + stores to R2)
+      security: [{ staffJwt: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+                altAr: { type: string }
+                altEn: { type: string }
+                isPrimary: { type: boolean }
+      responses:
+        '201':
+          description: Created
+          content: { application/json: { schema: { $ref: '#/components/schemas/MenuItemMedia' } } }
+
+  /v1/admin/menu/media/{mediaId}:
+    delete:
+      tags: [Admin Menu]
+      summary: Delete a media file
+      security: [{ staffJwt: [] }]
+      parameters:
+        - name: mediaId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: No Content }
+
+  /v1/admin/branches/{branchId}/settings:
+    parameters: [{ $ref: '#/components/parameters/BranchId' }]
+    patch:
+      tags: [Admin Branch]
+      summary: Update branch settings (timeouts, defaults, vat, etc.)
+      security: [{ staffJwt: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200': { description: OK }
+
+  /v1/admin/branches/{branchId}/online-ordering:
+    parameters: [{ $ref: '#/components/parameters/BranchId' }]
+    post:
+      tags: [Admin Branch]
+      summary: Pause / resume online ordering
+      security: [{ staffJwt: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled: { type: boolean }
+                reason:  { type: string }
+      responses:
+        '200': { description: OK }
+
+  /v1/admin/branches/{branchId}/agent:
+    parameters: [{ $ref: '#/components/parameters/BranchId' }]
+    get:
+      tags: [Admin Branch]
+      summary: Sync Agent health
+      security: [{ staffJwt: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  lastSeenAt:   { type: string, format: date-time }
+                  agentVersion: { type: string }
+                  outboxDepth:  { type: integer }
+                  inboxDepth:   { type: integer }
+
+  /v1/admin/branches/{branchId}/reports/daily:
+    parameters: [{ $ref: '#/components/parameters/BranchId' }]
+    get:
+      tags: [Admin Branch]
+      summary: Daily report
+      security: [{ staffJwt: [] }]
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  date:         { type: string, format: date }
+                  orderCount:   { type: integer }
+                  revenue:      { $ref: '#/components/schemas/Money' }
+                  paymentSplit:
+                    type: object
+                    additionalProperties: { type: integer }
+                  topItems:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        itemId: { type: string, format: uuid }
+                        nameEn: { type: string }
+                        qty:    { type: integer }
+                  cancellations:
+                    type: object
+                    additionalProperties: { type: integer }
+
+  # ----- Sync (agent only) -----
+  /v1/sync/heartbeat:
+    post:
+      tags: [Sync]
+      summary: Agent heartbeat
+      security: [{ agentJwt: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SyncHeartbeat' }
+      responses:
+        '200': { description: OK }
+
+  /v1/sync/outbox:
+    get:
+      tags: [Sync]
+      summary: Long-poll pull of pending cloud→agent events
+      security: [{ agentJwt: [] }]
+      parameters:
+        - name: since
+          in: query
+          schema: { type: string, description: cursor / timestamp }
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Cursored'
+                  - type: object
+                    properties:
+                      items: { type: array, items: { $ref: '#/components/schemas/SyncOutboxEvent' } }
+
+  /v1/sync/outbox/{eventId}/ack:
+    parameters:
+      - name: eventId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Sync]
+      summary: Agent acks a processed outbox event
+      security: [{ agentJwt: [] }]
+      responses:
+        '200': { description: OK }
+
+  /v1/sync/inbox:
+    post:
+      tags: [Sync]
+      summary: Agent pushes an event to cloud
+      security: [{ agentJwt: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SyncInboxEvent' }
+      responses:
+        '202': { description: Accepted }
+        '422': { $ref: '#/components/responses/Validation' }
