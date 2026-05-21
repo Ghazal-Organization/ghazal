@@ -1,0 +1,19 @@
+<Solution>
+  <Folder Name="/agents/" />
+  <Folder Name="/agents/sync-agent/" />
+  <Folder Name="/agents/sync-agent/src/">
+    <Project Path="agents/sync-agent/src/Ghazal.SyncAgent.Core/Ghazal.SyncAgent.Core.csproj" />
+    <Project Path="agents/sync-agent/src/Ghazal.SyncAgent.Host/Ghazal.SyncAgent.Host.csproj" />
+  </Folder>
+  <Folder Name="/agents/sync-agent/tests/">
+    <Project Path="agents/sync-agent/tests/Ghazal.SyncAgent.Core.UnitTests/Ghazal.SyncAgent.Core.UnitTests.csproj" />
+  </Folder>
+  <Folder Name="/services/" />
+  <Folder Name="/services/api/">
+    <Project Path="services/api/Ghazal.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Ghazal.Api.IntegrationTests/Ghazal.Api.IntegrationTests.csproj" />
+    <Project Path="tests/Ghazal.Api.UnitTests/Ghazal.Api.UnitTests.csproj" />
+  </Folder>
+</Solution>
