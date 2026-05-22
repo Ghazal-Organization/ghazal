@@ -19,7 +19,10 @@ public class HealthFunction
     public IActionResult Run(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "health")] HttpRequestData req)
     {
-        _logger.LogInformation("Health check served. version={Version}", TelemetryConfig.ServiceVersion);
+        _logger.LogInformation(
+            "Health check served. version={Version} env={Env}",
+            TelemetryConfig.ServiceVersion,
+            Environment.GetEnvironmentVariable("AZURE_FUNCTIONS_ENVIRONMENT") ?? "Production");
 
         return new OkObjectResult(new
         {
