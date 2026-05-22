@@ -1,0 +1,66 @@
+name: _swa-deploy (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        description: pnpm workspace filter, e.g. customer-web
+        type: string
+        required: true
+      app_dir:
+        description: Source folder of the app, e.g. apps/customer-web
+        type: string
+        required: true
+    secrets:
+      swa_token:
+        description: Azure Static Web Apps deployment token for this app
+        required: true
+
+jobs:
+  build-and-deploy:
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    name: Build & deploy ${{ inputs.app_name }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+          lfs: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build ${{ inputs.app_name }}
+        run: pnpm --filter ${{ inputs.app_name }} build
+
+      - name: Deploy to Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.swa_token }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: ${{ inputs.app_dir }}/dist
+          api_location: ''
+          output_location: ''
+          skip_app_build: true
+
+  close-pr-preview:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    name: Close PR preview for ${{ inputs.app_name }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Tear down preview environment
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.swa_token }}
+          action: close

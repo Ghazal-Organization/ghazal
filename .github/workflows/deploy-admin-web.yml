@@ -1,0 +1,35 @@
+name: Deploy admin-web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/admin-web/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'package.json'
+      - '.github/workflows/deploy-admin-web.yml'
+      - '.github/workflows/_swa-deploy.yml'
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches: [main]
+    paths:
+      - 'apps/admin-web/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'package.json'
+      - '.github/workflows/deploy-admin-web.yml'
+      - '.github/workflows/_swa-deploy.yml'
+
+concurrency:
+  group: deploy-admin-web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/_swa-deploy.yml
+    with:
+      app_name: admin-web
+      app_dir: apps/admin-web
+    secrets:
+      swa_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_MANGO_DUNE_086BCFF03 }}
