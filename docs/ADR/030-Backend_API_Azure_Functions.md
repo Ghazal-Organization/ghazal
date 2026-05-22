@@ -1,6 +1,6 @@
 # ADR-030: Backend API platform — Azure Functions Consumption (not App Service F1)
 
-**Decision**: Host the API as **Azure Functions Consumption** (.NET 8 isolated worker), with custom domain + free SSL, integrated as the **linked API** of the Static Web App (see ADR-031).
+**Decision**: Host the API as **Azure Functions Consumption** (.NET 10 isolated worker), with custom domain + free SSL, integrated as the **linked API** of the Static Web App (see ADR-031).
 
 ## Why not App Service F1
 
@@ -31,7 +31,7 @@ F1's lack of custom-domain SSL alone disqualifies it: Kashier callbacks and cust
 
 ## Programming model
 
-- ASP.NET Core flavoured **.NET 8 isolated worker** for Functions.
+- ASP.NET Core flavoured **.NET 10 isolated worker** for Functions.
 - Use **HTTP-triggered functions** for REST endpoints; **timer-triggered** for scheduled jobs (reconciliation, warm-up); **queue-triggered** (Azure Storage Queue, free tier) for background work (notifications, image processing).
 - Keep modular monolith structure inside the Functions project (Auth / Menu / Orders / Payments / Notifications modules — see ADR-013).
 

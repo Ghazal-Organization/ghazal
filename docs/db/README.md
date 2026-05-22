@@ -93,7 +93,7 @@ Add via migrations later — schema is designed to extend without breaking chang
 
 ## Migrations
 
-- Use **EF Core migrations** (since API is .NET 8). Folder: `src/Ghazal.Api/Migrations/`.
+- Use **EF Core migrations** (since API is .NET 10). Folder: `src/Ghazal.Api/Migrations/`.
 - Naming: `YYYYMMDD_HHmm_short_description.cs`.
 - One Neon **branch per environment**: `main` (prod), `staging`, `dev-<developer>`. Use Neon's free branching.
 - Apply migrations from CI on deploy; never `dotnet ef database update` against prod from a laptop.

@@ -5,7 +5,7 @@
 | Layer | Service | Tier | Cost |
 |---|---|---|---|
 | Customer + Admin PWAs (React + Vite) | **Azure Static Web Apps** (Free) | Free | $0 |
-| API (.NET 8) | **Azure Functions Consumption** (isolated worker) | Free 1M req + 400k GB-s/mo | $0 |
+| API (.NET 10) | **Azure Functions Consumption** (isolated worker) | Free 1M req + 400k GB-s/mo | $0 |
 | Database | **Neon Free Postgres** (EU region) | 0.5 GB, branching, scale-to-zero | $0 |
 | Object storage (menu images, receipts) | **Cloudflare R2** | 10 GB free + zero egress | $0 |
 | Secrets | **Azure Key Vault** | ~free at low volume | ~$0 |

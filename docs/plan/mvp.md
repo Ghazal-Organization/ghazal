@@ -61,7 +61,7 @@
 - View Sync Agent health (last heartbeat, sync lag, queue depth).
 
 ### Sync Agent — `agents/sync-agent`
-- Windows Service, .NET 8 Worker.
+- Windows Service, .NET 10 Worker.
 - Loads YAML mapping config per POS vendor (table/column mapping) — discovery deferred (see Phase 3).
 - **Cloud → Agent**: pulls new online orders, inserts into a dedicated `online_orders_inbox` table inside the POS SQLite DB.
 - **Agent → Cloud**: detects POS status changes (signal-based per ADR-017), pushes back to cloud with idempotency keys.
@@ -71,7 +71,7 @@
 - Outbound HTTPS only; signed JWT per branch (ADR-003).
 - Auto-updater from signed manifest.
 
-### Cloud API — `services/api` (Azure Functions, .NET 8 isolated)
+### Cloud API — `services/api` (Azure Functions, .NET 10 isolated)
 - Modules: `auth`, `menu`, `orders`, `payments`, `notifications`, `sync`, `admin`, `webhooks`.
 - Kashier HPP + webhook handler with HMAC verification (ADR-009).
 - SMS provider adapter (ADR-010 — provider TBD by cost in phase 0).
@@ -81,7 +81,7 @@
 
 ### Infrastructure
 - Azure SWA (Free, two apps: customer-web, admin-web).
-- Azure Functions Consumption (.NET 8 isolated).
+- Azure Functions Consumption (.NET 10 isolated).
 - Neon Postgres Free tier, EU region, branched per env.
 - Cloudflare R2 for menu images + receipts.
 - Cloudflare DNS + Free WAF.
