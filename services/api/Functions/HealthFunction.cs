@@ -13,7 +13,7 @@ public class HealthFunction
     {
         return new OkObjectResult(new
         {
-            status = "ok",
+            status = "Ok",
             version = "0.0.1",
             utc = DateTime.UtcNow
         });
