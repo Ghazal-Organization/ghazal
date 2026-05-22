@@ -23,7 +23,10 @@ var otel = builder.Services.AddOpenTelemetry()
 
 if (telemetry.IsEnabled)
 {
-    otel.UseAzureMonitorExporter();
+    otel.UseAzureMonitorExporter(options =>
+    {
+        options.ConnectionString = telemetry.ConnectionString;
+    });
 }
 
 var app = builder.Build();
