@@ -1,0 +1,37 @@
+name: deploy API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'services/api/**'
+      - 'Ghazal.slnx'
+      - 'global.json'
+      - '.github/workflows/deploy-api.yml'
+  workflow_dispatch:    # lets us trigger manually from Actions Tab
+
+concurrency:
+  group: deploy-api-main
+  cancel-in-progress: false # false, not true - see explanation below
+
+jobs:
+  deploy:
+    name: Build & deploy Function App
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-dotnet@v3
+        with:
+          global-json-file: global.json
+    
+      - name: Publish
+        run: dotnet publish services/api/Ghazal.Api.csproj --configuration Release --output ./publish
+     
+      - name: Deploy to Azure Functions
+        uses: Azure/functions-action@v1
+        with:
+          app-name: func-ghazal-api
+          slot-name: production
+          package: ./publish
+          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
