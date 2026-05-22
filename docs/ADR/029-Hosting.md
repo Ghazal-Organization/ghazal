@@ -22,7 +22,7 @@
   - Commercial use allowed on Free tier (unlike Vercel Hobby).
   - 100 GB / month bandwidth is more than enough for ~100–300 orders/day plus menu browsing.
 - **Azure Functions Consumption** chosen over App Service F1 because:
-  - F1 has no custom-domain SSL — disqualifying for Kashier and customer trust.
+  - F1 has no custom-domain SSL — disqualifying for Paymob and customer trust.
   - F1 has a 60 CPU-min/day hard cap that this workload would exceed.
   - F1 has a 165 MB/day outbound bandwidth cap.
   - Functions Consumption supports custom domain + free SSL, no daily caps, and the cold-start cost (2–5 s) is acceptable for an ordering site at this scale.

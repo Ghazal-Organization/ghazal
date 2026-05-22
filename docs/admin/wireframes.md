@@ -220,7 +220,7 @@ Behaviour:
 │ Reason  ▼  Customer request                  │
 │ Notes  [ optional… ]                         │
 │                                              │
-│ Refunds via Kashier may take 3–7 business    │
+│ Refunds via Paymob may take 3–7 business    │
 │ days to appear on the customer's card.       │
 │                                              │
 │ ‹Cancel›                  [  Issue refund  ]│
@@ -488,7 +488,7 @@ Online orders are still being received and queued; they will be delivered to the
 - **Users & roles** — list of `staff_users` with `Add user` dialog; role assignment per branch.
 - **Refund limits** — manager refund cap (number), per-order and per-day.
 - **Notifications** — pick SMS provider (env config view), edit notification templates per event.
-- **API keys** — Kashier mode (sandbox/live), credentials masked, last-rotated date.
+- **API keys** — Paymob mode (sandbox/live), credentials masked, last-rotated date.
 - **Audit log** — table view of `audit_log` with filters by actor + action.
 
 ---

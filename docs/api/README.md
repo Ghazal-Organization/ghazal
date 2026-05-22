@@ -77,7 +77,7 @@ Standard `type` URIs (kept under `/errors/`):
 ### Tracing & correlation
 - Inbound `traceparent` header honoured (W3C Trace Context).
 - Every response carries `traceId` in body + `x-trace-id` header.
-- The same `traceId` flows: customer browser → API → Functions → Kashier webhook handler → Sync Agent.
+- The same `traceId` flows: customer browser → API → Functions → Paymob webhook handler → Sync Agent.
 
 ### Content type
 - `application/json` for requests and responses; `application/problem+json` for errors.
@@ -85,7 +85,7 @@ Standard `type` URIs (kept under `/errors/`):
 
 ### Health
 - `GET /healthz` — liveness, returns `{"status":"ok"}` and the App Insights link in the trace.
-- `GET /readyz` — checks Neon + R2 + Kashier reachability.
+- `GET /readyz` — checks Neon + R2 + Paymob reachability.
 
 ---
 
@@ -130,13 +130,13 @@ Status codes shown are the **happy path**; error responses always use Problem De
 | POST | `/orders` | Create order from cart (Idempotency-Key required). Returns order + payment intent if not COD. | customer |
 | GET | `/orders/{id}` | Get order (customer can only see own; staff via admin route) | customer |
 | POST | `/orders/{id}/cancel` | Customer-initiated cancel (only allowed before `ACCEPTED`) | customer |
-| POST | `/orders/{id}/payment` | Initiate / re-initiate Kashier session for the order; returns HPP URL | customer |
+| POST | `/orders/{id}/payment` | Initiate / re-initiate Paymob session for the order; returns HPP URL | customer |
 | GET | `/orders/{id}/payment/status` | Latest payment status (poll fallback for SignalR) | customer |
 
 ### Webhooks (`/v1/webhooks`)
 | Method | Path | Purpose | Auth |
 |---|---|---|---|
-| POST | `/webhooks/kashier` | Kashier payment events (HMAC verified, replay-safe) | signature |
+| POST | `/webhooks/paymob` | Paymob payment events (HMAC verified, replay-safe) | signature |
 | POST | `/webhooks/sms` | Optional delivery receipts from SMS provider | signature/IP |
 
 ### Admin (`/v1/admin`)
@@ -151,7 +151,7 @@ Status codes shown are the **happy path**; error responses always use Problem De
 | POST | `/admin/orders/{id}/mark-out-for-delivery` | `READY → OUT_FOR_DELIVERY` (delivery only) | manager/cashier |
 | POST | `/admin/orders/{id}/mark-completed` | `READY|OUT_FOR_DELIVERY → COMPLETED` | manager/cashier |
 | POST | `/admin/orders/{id}/cancel` | Branch-initiated cancel | manager |
-| POST | `/admin/orders/{id}/refund` | Full or partial via Kashier | manager (≤ threshold), owner (any) |
+| POST | `/admin/orders/{id}/refund` | Full or partial via Paymob | manager (≤ threshold), owner (any) |
 | GET | `/admin/branches/{branchId}/menu/items` | Items + online attrs + media (admin view) | manager/owner |
 | PATCH | `/admin/menu/items/{id}/online-attributes` | Update description, tags, `is_online_visible`, prep time, min/max | manager/owner |
 | POST | `/admin/menu/items/{id}/media` | Upload image (multipart) — server transcodes to R2 | manager/owner |
@@ -183,10 +183,10 @@ Client POST /v1/orders                                       Idempotency-Key
        └─► create payment(status=AUTHORIZING)
    ◄── 201 { orderId, paymentSessionUrl }   (or 202 if COD)
 
-Client redirects to Kashier HPP
+Client redirects to Paymob HPP
    ... user pays ...
 
-Kashier ─► POST /v1/webhooks/kashier                         HMAC
+Paymob ─► POST /v1/webhooks/paymob                         HMAC
    └─► verify signature
    └─► dedupe via processed_webhooks PK
    └─► if CAPTURED: payment→CAPTURED, order PENDING→PLACED
@@ -205,11 +205,11 @@ Cashier marks order in POS  →  Agent POST /v1/sync/inbox {event=pos.status_cha
 ```
 Manager POST /v1/admin/orders/{id}/refund {amount, reason}    Idempotency-Key
    └─► validate state allows refund + role limit
-   └─► call Kashier refund API
+   └─► call Paymob refund API
    └─► insert refund(status=pending) + payment_events
    ◄── 202 { refundId, status=pending }
 
-Kashier ─► POST /v1/webhooks/kashier   (refund event)
+Paymob ─► POST /v1/webhooks/paymob   (refund event)
    └─► refund.status=succeeded, payment→REFUNDED, order cancel/completed accordingly
    └─► SMS customer (refund issued)
 ```

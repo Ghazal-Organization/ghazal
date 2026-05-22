@@ -5,11 +5,11 @@
 - **API (Azure Functions)**: native App Insights integration via the Functions host — auto-collects requests, dependencies, exceptions, traces, performance counters.
 - **Frontends (Azure Static Web Apps)**: App Insights JavaScript SDK for page views, route changes, JS exceptions, and custom events (add-to-cart, checkout-started, payment-completed).
 - **Sync Agent (.NET Worker on POS PC)**: App Insights .NET SDK over HTTPS to the same instance, tagged with `branchId` and `agentVersion`.
-- **Correlation**: one **trace ID per order** propagated across customer browser → API → Functions → Kashier webhook → Sync Agent → POS. Use W3C Trace Context headers (`traceparent`).
+- **Correlation**: one **trace ID per order** propagated across customer browser → API → Functions → Paymob webhook → Sync Agent → POS. Use W3C Trace Context headers (`traceparent`).
 
 **Business metrics to track**:
 - Orders / hour, orders / day per branch and per channel (takeaway, delivery).
-- Payment success / failure / refund rates (per Kashier method, COD vs cards).
+- Payment success / failure / refund rates (per Paymob method, COD vs cards).
 - Sync Agent heartbeat (alert if no heartbeat for > 2 min during business hours).
 - Sync lag (cloud → POS write latency, POS → cloud status push latency).
 - Customer journey funnel: menu view → cart → checkout → payment → placed.

@@ -41,7 +41,7 @@
 - Phone-OTP login (no email required).
 - Checkout:
   - Re-fetch live prices from POS snapshot at submit (ADR-006).
-  - Payment options: card / wallet via Kashier HPP, or COD.
+  - Payment options: card / wallet via Paymob HPP, or COD.
   - Branch open hours and pause state respected.
 - Live order tracking page: status timeline + estimated ready time.
 - Order history per customer.
@@ -73,7 +73,7 @@
 
 ### Cloud API — `services/api` (Azure Functions, .NET 10 isolated)
 - Modules: `auth`, `menu`, `orders`, `payments`, `notifications`, `sync`, `admin`, `webhooks`.
-- Kashier HPP + webhook handler with HMAC verification (ADR-009).
+- Paymob HPP + webhook handler with HMAC verification (ADR-009).
 - SMS provider adapter (ADR-010 — provider TBD by cost in phase 0).
 - Notification sender for: OTP, order_placed, accepted, ready/out-for-delivery, completed, cancelled.
 - Idempotency keys on order creation, payments, webhooks, agent push.
@@ -121,7 +121,7 @@ Phases are ordered, not date-boxed. Each phase has a clear **exit criterion** so
 |---|---|---|---|
 | **Unit** | xUnit + FluentAssertions + NSubstitute | Pure logic: state machine transitions, price math, HMAC signing, mappers | `tests/<module>.UnitTests` |
 | **Integration** | xUnit + Testcontainers (Postgres) + WebApplicationFactory | Real DB + EF + Functions host; verify SQL, transactions, outbox writes | `tests/<module>.IntegrationTests` |
-| **Contract** | xUnit + WireMock.Net | Kashier webhook signature + payload shapes; SMS provider stub | `tests/Contracts.Tests` |
+| **Contract** | xUnit + WireMock.Net | Paymob webhook signature + payload shapes; SMS provider stub | `tests/Contracts.Tests` |
 | **E2E** | Playwright (TS) | Critical journeys end-to-end through SWA + Functions + Neon test branch | `tests/e2e/playwright` |
 | **Sync Agent** | xUnit + temp SQLite file | Mappers, outbox replay, idempotency, schema-fingerprint guard | `tests/SyncAgent.UnitTests` |
 | **Mutation (hardening)** | Stryker.NET on `Orders` + `Payments` modules | Catches assert-light tests | Phase 4, not per-PR |
@@ -129,8 +129,8 @@ Phases are ordered, not date-boxed. Each phase has a clear **exit criterion** so
 **Critical paths covered by E2E (must exist before launch)**:
 - Customer places card-paid order → webhook → `PLACED` → admin marks `READY` → `COMPLETED` → status SMS sent.
 - Customer places COD order → admin accepts → `COMPLETED`.
-- Same Kashier webhook delivered twice → exactly one state change.
-- Admin issues refund → Kashier refund webhook → `REFUNDED`.
+- Same Paymob webhook delivered twice → exactly one state change.
+- Admin issues refund → Paymob refund webhook → `REFUNDED`.
 - Delivery-zone validation rejects out-of-area address at checkout.
 
 **What we do NOT test**:
@@ -163,7 +163,7 @@ Phases are ordered, not date-boxed. Each phase has a clear **exit criterion** so
 - Domain registered (e.g. `ghazal.example`); DNS on Cloudflare.
 - Apply [schema.sql](../db/schema.sql) to Neon `staging` + `main` branches.
 - Choose SMS provider, get sandbox credentials, start NTRA sender-ID approval (long lead).
-- Kashier sandbox credentials in hand.
+- Paymob sandbox credentials in hand.
 - **Exit**: empty API returns 200 on `/health` from a custom domain; both SWAs serve a "Hello" page; CI green; the smoke E2E test passes against the deployed stack.
 
 ### Phase 1 — Cloud backbone
@@ -184,21 +184,21 @@ Phases are ordered, not date-boxed. Each phase has a clear **exit criterion** so
 ### Phase 2 — Customer ordering + payments
 
 **Test plan (red first)**:
-- *Unit*: `OrderStateMachine.Transition` — every valid + invalid transition; price math (subtotal, tax, fee, total) with bidi rounding; HMAC signing of Kashier requests; webhook signature verification (positive + negative + malformed); idempotency-key collision handling.
+- *Unit*: `OrderStateMachine.Transition` — every valid + invalid transition; price math (subtotal, tax, fee, total) with bidi rounding; HMAC signing of Paymob requests; webhook signature verification (positive + negative + malformed); idempotency-key collision handling.
 - *Integration*: place order writes lines + events + outbox in one transaction; webhook handler replayed twice produces exactly one state change; refund flow updates payment + creates refund row; delivery-zone polygon validation accepts/rejects correctly.
-- *Contract*: Kashier webhook payloads (success / failure / refund) via WireMock fixtures; SMS provider success + retry-on-503.
+- *Contract*: Paymob webhook payloads (success / failure / refund) via WireMock fixtures; SMS provider success + retry-on-503.
 - *E2E*: full card payment flow; full COD flow; failed payment flow; refund initiated by manager; address-out-of-zone rejection.
 
 **Build**:
 - Customer PWA: menu browse, search, cart, checkout, OTP login, order detail.
 - Address book + delivery-zone validation.
-- Kashier HPP integration + webhook + idempotency.
+- Paymob HPP integration + webhook + idempotency.
 - COD path.
 - Order state machine (cloud-only, no POS yet).
 - SMS provider adapter: OTP, order_placed, completed.
-- Refunds via Kashier API + admin UI.
+- Refunds via Paymob API + admin UI.
 
-**Exit**: real customer places an order paid by Kashier sandbox or COD; manager accepts/refunds it from the admin. POS is *not* in the loop yet. All four E2E flows pass on staging.
+**Exit**: real customer places an order paid by Paymob sandbox or COD; manager accepts/refunds it from the admin. POS is *not* in the loop yet. All four E2E flows pass on staging.
 
 ### Phase 3 — POS integration (on-site work)
 
@@ -229,8 +229,8 @@ Phases are ordered, not date-boxed. Each phase has a clear **exit criterion** so
 - Alerts wired in App Insights: payment failure rate, agent offline, error spike.
 - Runbooks for: payment dispute, refund stuck, agent disconnected, POS schema change.
 - **Mutation testing pass** with Stryker.NET on `Orders` + `Payments` modules; target ≥ 80% mutation score on the state machine and HMAC code. From this phase onward, Stryker is a gating CI job, not informational.
-- **Chaos tests**: scripted scenarios for Kashier webhook timeout, agent disconnect, Neon cold-start mid-checkout, SMS provider 5xx. Each scenario has an automated test asserting the system degrades gracefully (queue, retry, alert).
-- Privacy policy + T&Cs (AR/EN), Kashier site review passed.
+- **Chaos tests**: scripted scenarios for Paymob webhook timeout, agent disconnect, Neon cold-start mid-checkout, SMS provider 5xx. Each scenario has an automated test asserting the system degrades gracefully (queue, retry, alert).
+- Privacy policy + T&Cs (AR/EN), Paymob site review passed.
 - Owner + manager training (1-hour walkthrough + screen recording).
 - **Exit**: signed-off pilot launch — single branch, real customers, observed for ~2 weeks. Mutation score and chaos test results documented in `docs/quality/`.
 
@@ -258,8 +258,8 @@ Track these on a Workbook in App Insights, plus a Slack/Email digest each mornin
 ## 8. Pre-launch checklist
 
 **Legal / commercial (client owns)**
-- [ ] Restaurant CR active and matches Kashier docs + bank account
-- [ ] Kashier production credentials issued; site review passed
+- [ ] Restaurant CR active and matches Paymob docs + bank account
+- [ ] Paymob production credentials issued; site review passed
 - [ ] NTRA sender-ID approved for SMS provider
 - [ ] T&Cs, Privacy, Refund/Cancellation, Delivery policy published in AR
 - [ ] Operating license + tax card on file
@@ -268,7 +268,7 @@ Track these on a Workbook in App Insights, plus a Slack/Email digest each mornin
 - [ ] Production Neon branch with daily backup + tested restore
 - [ ] R2 bucket with retention policy on receipts
 - [ ] Custom domain on SWA + Functions with valid TLS
-- [ ] Kashier webhook URL whitelisted in their dashboard; HMAC verified
+- [ ] Paymob webhook URL whitelisted in their dashboard; HMAC verified
 - [ ] App Insights alerts firing into email + manager phone
 - [ ] Sync Agent installed as Windows Service with auto-restart
 - [ ] Agent has signed JWT; updater verified
@@ -285,12 +285,12 @@ Track these on a Workbook in App Insights, plus a Slack/Email digest each mornin
 | Risk | Impact | Mitigation |
 |---|---|---|
 | POS schema changes after vendor update | Sync Agent breaks silently | YAML mapping config + agent self-tests against schema fingerprint at startup |
-| Kashier outage | Card payments unavailable | COD remains; admin banner; queue retries |
+| Paymob outage | Card payments unavailable | COD remains; admin banner; queue retries |
 | SMS provider outage / sender-ID rejection | OTP and notifications fail | Fallback OTP path (e.g. Firebase Phone Auth); secondary SMS provider in adapter |
 | Free-tier limits hit (Neon storage, Functions GB-s) | App slows/breaks | Budget alerts + documented upgrade path (ADR-029) |
 | Restaurant doesn't upload menu photos | Customer site looks unprofessional | "Menu Health" nag screen + branded category placeholders |
 | Branch loses internet | New orders queue but POS doesn't see them | Agent retries; admin shows "branch offline" banner; cloud holds orders for replay |
-| Disputes/chargebacks | Lost revenue | Full event log + signed Kashier responses kept 13 months |
+| Disputes/chargebacks | Lost revenue | Full event log + signed Paymob responses kept 13 months |
 | Bilingual / RTL bugs | Bad UX in AR | RTL design tokens from day one; native-Arabic-speaker QA pass before launch |
 | Scope creep ("just add WhatsApp / loyalty…") | Pilot slips | Strict deferred list (section 5); written change-request flow |
 

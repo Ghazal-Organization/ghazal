@@ -24,7 +24,7 @@ A complete online ordering system, branded as Ghazal, made of four pieces:
 3. **Bridge to your existing cashier app**
    A small program runs on your cashier PC and **automatically pushes online orders into your POS** so the kitchen prints a ticket like any in-store order. No new workflow for the team.
 
-4. **Payments collected through Kashier** (cards, Vodafone Cash, Meeza, COD)
+4. **Payments collected through Paymob** (cards, Vodafone Cash, Meeza, COD)
    Money lands in your bank account; we never touch it.
 
 ## 3. What it does for the business
@@ -69,16 +69,16 @@ These are required **before launch**:
 
 | What | Why | Who provides |
 |---|---|---|
-| Active **commercial registration** (CR) + tax card in the restaurant's name | Kashier merchant onboarding | You |
+| Active **commercial registration** (CR) + tax card in the restaurant's name | Paymob merchant onboarding | You |
 | Bank account in the same legal name | Where settlements land | You |
-| **Kashier merchant account approval** (we help with paperwork) | Card / wallet payments | You + us |
+| **Paymob merchant account approval** (we help with paperwork) | Card / wallet payments | You + us |
 | **NTRA-approved SMS sender ID** (we apply on your behalf) | Branded SMS like "Ghazal: your order is ready" | Us, on your behalf |
 | Logo files + 1 brand colour preference + ~15 dish photos | The site looks like your brand | You |
 | Domain name preference (e.g. `ghazal-eg.com`) | Customer-facing URL | You |
 | One designated **manager** trained on the dashboard | Day-to-day operations | You |
 | Confirmation that we can install our small program on your cashier PC | Bridge to your POS | You |
 
-What you do **not** need to provide: a tech team, a server, a payment provider account beyond Kashier, any change to your existing cashier app, or any cash up front for our cloud hosting (it starts free).
+What you do **not** need to provide: a tech team, a server, a payment provider account beyond Paymob, any change to your existing cashier app, or any cash up front for our cloud hosting (it starts free).
 
 ## 7. Investment
 
@@ -86,7 +86,7 @@ What you do **not** need to provide: a tech team, a server, a payment provider a
 |---|---|---|
 | Build & launch (one-off) | Dev work | _TBD per scope / team rate_ |
 | Cloud infrastructure | Monthly recurring | **~$0 – $25 / month** at pilot volume — designed to grow only when revenue does |
-| Payments (Kashier) | % of each transaction | Negotiated by you with Kashier (typically 2–3% for cards) |
+| Payments (Paymob) | % of each transaction | Negotiated by you with Paymob (typically 2–3% for cards) |
 | SMS to customers | Per message | ~EGP 0.05–0.20 each — about **EGP 15–50 / day** at your expected order volume |
 | Support after launch | Monthly | _TBD — bug fixes & small changes_ |
 
@@ -98,18 +98,18 @@ We deliver in 5 ordered phases, each with a clear "done" signal so you can see p
 
 1. **Foundations** — accounts set up, infrastructure ready, first "hello" page online.
 2. **Cloud backbone** — manager login, menu management, image uploads.
-3. **Customer ordering + payments** — real online order, real Kashier payment, real refund, real manager actions. *Pos isn't connected yet — kitchen sees orders in the dashboard only.*
+3. **Customer ordering + payments** — real online order, real Paymob payment, real refund, real manager actions. *Pos isn't connected yet — kitchen sees orders in the dashboard only.*
 4. **Bridge to your cashier app** — one engineer visits the branch, connects to your POS, online orders flow into the kitchen exactly like phone orders.
 5. **Hardening & pilot launch** — alerts, backups, manager training, owner training, soft launch with real customers for 2–4 weeks.
 
-We do not promise specific dates until we agree the scope and assemble the team; phases 1–3 can run in parallel with you arranging Kashier and SMS paperwork, so the cumulative wait stays low.
+We do not promise specific dates until we agree the scope and assemble the team; phases 1–3 can run in parallel with you arranging Paymob and SMS paperwork, so the cumulative wait stays low.
 
 ## 9. Honest risks you should know about
 
-- **Kashier merchant approval typically takes 5–10 business days** once paperwork is complete. Start now.
+- **Paymob merchant approval typically takes 5–10 business days** once paperwork is complete. Start now.
 - **NTRA SMS sender-ID approval can take 2–6 weeks**. We start that on day one; until it lands we can use a generic sender ID.
 - **Your cashier app must allow our small program to read/write the local database.** We confirm this on the on-site visit (phase 4). If it doesn't, we have a fallback that keeps online orders in the manager dashboard only, but the kitchen workflow becomes a little less automatic.
-- **Card refunds appear on the customer's card in 3–7 business days** — that's Kashier's / the bank's timing, not ours.
+- **Card refunds appear on the customer's card in 3–7 business days** — that's Paymob's / the bank's timing, not ours.
 - **Menu photos matter a lot for conversion.** Items without a photo sell measurably less. We will nag you (kindly) until the top 20 items have proper photos.
 
 ## 10. How we protect the business
@@ -117,7 +117,7 @@ We do not promise specific dates until we agree the scope and assemble the team;
 - **Your prices are always whatever your cashier app says** — never can the online site quietly sell at a different price.
 - **Every order, payment, refund, cancellation is logged with timestamp + who did it** — disputes are easy to resolve.
 - **You can pause online ordering with one tap** if the kitchen is overwhelmed.
-- **No card data ever touches our system** — Kashier handles all card info on their own secure pages.
+- **No card data ever touches our system** — Paymob handles all card info on their own secure pages.
 - **Daily database backups** + a tested restore procedure.
 - **Owner-only refund limits** above a configurable amount.
 

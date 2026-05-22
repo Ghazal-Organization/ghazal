@@ -1,0 +1,29 @@
+# Code owners for the Ghazal monorepo.
+# Order matters — the LAST matching pattern wins.
+# Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-security/customizing-your-repository/about-code-owners
+#
+# Replace @Ghazal-Organization/maintainers with concrete teams or @handles
+# once individual owners are assigned.
+
+* @Ghazal-Organization/maintainers
+
+# Backend (.NET) — API + sync agent
+/services/api/                           @Ghazal-Organization/maintainers
+/agents/sync-agent/                      @Ghazal-Organization/maintainers
+/tests/Ghazal.Api.UnitTests/             @Ghazal-Organization/maintainers
+/tests/Ghazal.Api.IntegrationTests/      @Ghazal-Organization/maintainers
+
+# Frontends
+/apps/customer-web/                      @Ghazal-Organization/maintainers
+/apps/admin-web/                         @Ghazal-Organization/maintainers
+/tests/e2e/                              @Ghazal-Organization/maintainers
+
+# Architecture decisions — require deliberate review
+/docs/ADR/                               @Ghazal-Organization/maintainers
+/docs/plan/                              @Ghazal-Organization/maintainers
+/docs/api/openapi.yaml                   @Ghazal-Organization/maintainers
+/docs/db/schema.sql                      @Ghazal-Organization/maintainers
+
+# CI/CD + repository governance
+/.github/                                @Ghazal-Organization/maintainers
+/infra/                                  @Ghazal-Organization/maintainers

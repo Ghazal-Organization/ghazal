@@ -352,7 +352,7 @@ PWA detail:
 │ │ ●  💳  Card / wallet     │ │
 │ │    Visa, Mastercard,     │ │
 │ │    Meeza, Vodafone Cash  │ │
-│ │    Powered by Kashier    │ │
+│ │    Powered by Paymob    │ │
 │ ├──────────────────────────┤ │
 │ │ ○  💵  Cash on delivery  │ │
 │ │    Pay when it arrives   │ │
@@ -378,7 +378,7 @@ PWA detail:
 - On press of "Place order":
   1. If not authenticated → OTP screen (next).
   2. Server **re-prices** against the POS snapshot (ADR-006). If anything changed (price up/down, item 86'd), show an inline diff and ask the user to confirm.
-  3. For card/wallet → redirect to Kashier HPP in the same tab; on return → confirmation screen.
+  3. For card/wallet → redirect to Paymob HPP in the same tab; on return → confirmation screen.
   4. For COD → straight to confirmation screen.
 
 ### 8a. Repriced confirmation
@@ -702,7 +702,7 @@ Tactics:
 
 - Live map tracking on the tracking page (ADR-032 — restaurant owns delivery; no rider GPS).
 - Promo codes / loyalty points (ADR-031).
-- Saved payment methods (introduces PCI scope creep; one Kashier session per order in MVP).
+- Saved payment methods (introduces PCI scope creep; one Paymob session per order in MVP).
 - Scheduled orders for later in the week — only same-day ASAP in v1.
 - Multi-restaurant ("Other restaurants near you") browsing — out of scope.
 - Push notifications — SMS only in MVP (ADR-010 revised).

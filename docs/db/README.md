@@ -77,7 +77,7 @@ Owned by the cloud (Neon). The POS SQLite database is the source of truth for **
 - **`menu_items` is per-branch**, not global. Two branches may have different prices/availability for the same dish. They share the same `pos_external_id` only by convention; if branches use different POS instances, IDs differ — that's fine.
 - **`online_item_attributes`** is the cloud-only enrichment (images, long descriptions, AR/EN names if richer than POS, tags, `is_online_visible`, online prep time, min/max per order). Linked 1:1 to `menu_items`.
 - **`order_events`** is append-only; the order's current status is denormalised onto `orders.status` for fast reads, but every transition is recorded with actor + reason + idempotency key (ADR-016, ADR-018).
-- **`processed_webhooks`** stores Kashier webhook IDs we've already handled — idempotent replay (ADR-009).
+- **`processed_webhooks`** stores Paymob webhook IDs we've already handled — idempotent replay (ADR-009).
 - **`sync_outbox` / `sync_inbox`** implement the outbox pattern on both sides (ADR-025). `sync_outbox` rows are deleted after the agent acks; `sync_inbox` rows transition to `processed`/`failed`.
 - **`delivery_zones`** carries GeoJSON polygons used only for **address validation** and **fee calculation** at checkout. Rider dispatch is out of scope — the restaurant runs that themselves (ADR-032).
 - **`audit_log`** for sensitive admin actions only (price changes, refunds, cancellations by staff). Don't log every CRUD — `order_events` covers orders, and App Insights covers infra.

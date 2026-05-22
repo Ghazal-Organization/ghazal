@@ -13,7 +13,7 @@
 | Memory | 1 GB | 1.5 GB |
 | Free tier req allowance | n/a (always-on while quota lasts) | 1M requests + 400k GB-s / month |
 
-F1's lack of custom-domain SSL alone disqualifies it: Kashier callbacks and customer trust require `api.ghazal.example` on HTTPS.
+F1's lack of custom-domain SSL alone disqualifies it: Paymob callbacks and customer trust require `api.ghazal.example` on HTTPS.
 
 ## Why Functions Consumption fits
 
